@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 import re
 import shutil
-import subprocess
 import sys
 
 __projectdir__ = Path(os.path.dirname(os.path.realpath(__file__)) + '')
@@ -19,60 +18,13 @@ from colors_basic import BLACK
 sys.path.append(str(__projectdir__ / Path('submodules/py-getch/getch/')))
 from getch import getch
 
+# argparse fileinputs
+sys.path.append(str(__projectdir__ / Path('submodules/argparse-fileinputs/')))
+from argparse_fileinputs import add_fileinputs
+from argparse_fileinputs import process_fileinputs
 
 # Definitions:{{{1
 namereplacedtext = 'replacedTEXThere'
-
-
-# Argparse General Function for getting Files to Search/Replace on:{{{1
-def argparse_fileinputs(filelist, files_asstring, files_infile, files_indir, files_inpwd):
-    """
-    Take a list of input choices from argparse and turn them into a file list for infrep
-
-    filelist = list of files
-
-    files_asstring = filenames inputted as a string with spaces in between (filenames should not have spaces)
-    """
-    import os
-    import subprocess
-    import sys
-
-    numfileinputs = 0
-    if filelist is not None:
-        numfileinputs = numfileinputs + 1
-    if files_asstring is not None:
-        numfileinputs = numfileinputs + 1
-    if files_infile is not None:
-        numfileinputs = numfileinputs + 1
-    if files_indir is not None:
-        numfileinputs = numfileinputs + 1
-    if files_inpwd is True:
-        numfileinputs = numfileinputs + 1
-    if numfileinputs != 1:
-        raise ValueError('Multiple file input methods')
-
-    if filelist is not None:
-        return(filelist)
-
-    if files_asstring is not None:
-        return(files_asstring.split(' '))
-
-    if files_infile is not None:
-        if not os.path.exists(files_infile):
-            raise ValueError('files_infile should be a filename. It does not exist. files_infile: ' + str(files_infile))
-        with open(files_infile, 'r') as f:
-            filenames = f.read().split()[: -1]
-        return(filenames)
-
-    if files_indir is not None or files_inpwd is True:
-        if files_inpwd is True:
-            files_indir = [os.path.abspath(os.getcwd())]
-        filenames = []
-        for root, dirs, files in os.walk(".", topdown=False):
-            for name in files:
-                filenames.append(os.path.join(root, name))
-
-        return(filenames)
 
 
 # Infrep Functions:{{{1
@@ -353,12 +305,7 @@ def infrep_argparse(filelist = None):
     parser.add_argument("inputterm", type=str, help="What I will change from. If I want to match a backslash, I only need to write 1 backslash since I escape the text before applying it to a regex.")
     parser.add_argument("outputterm", type=str, help="What I will change to. If I want to output a backslash, i only need to write 1 backslash.")
 
-    # Which files do the search and replace on:
-    parser.add_argument("-f", "--filename", type=list, help="Input a list of filenames separated using -f file1 -f fil2")
-    parser.add_argument("--files_asstring", type=str, help="input a string with filenames separated by single spaces")
-    parser.add_argument("--files_infile", type=str, help="Input a filename which contains a list of filenames separated by newlines")
-    parser.add_argument("-d", "--files_indir", type=list, help="Run on a directory. Can also run on multiple directories by specifying -d dir1 -d dir2")
-    parser.add_argument("--files_inpwd", type=str, help="get all filenames in current directory")
+    parser = add_fileinputs(parser)
 
     # inputmethod/outputmethod:
     parser.add_argument('--reinput', help = "inputterm that is inputted into re.compile (inputmethod = 're'). I need two backslashes if I want to write backslash, since when I input in the regex \\\\ -> \\", action = 'store_true')
@@ -376,7 +323,7 @@ def infrep_argparse(filelist = None):
 
     # Get files to do search and replace on:
     if filelist is None:
-        filelist = argparse_fileinputs(args.filename, args.files_asstring, args.files_infile, args.files_indir, args.files_inpwd)
+        filelist = process_fileinputs(args.filename, args.files_asstring, args.files_aslines, args.files_infile, args.files_indir, args.files_inpwd)
 
     # get inputmethod/outputmethod
     if args.reboth is True or args.reinput is True:
@@ -514,347 +461,15 @@ def pathmv_argparse(filelist = None):
     # Actual files that are being moved:
     parser.add_argument('files', nargs='*')
 
-    # Which files do the search and replace on:
-    parser.add_argument("-f", "--filename", type=list, help="Input a list of filenames separated using -f file1 -f fil2")
-    parser.add_argument("--files_asstring", type=str, help="input a string with filenames separated by single spaces")
-    parser.add_argument("--files_infile", type=str, help="Input a filename which contains a list of filenames separated by newlines")
-    parser.add_argument("-d", "--files_indir", type=list, help="Run on a directory. Can also run on multiple directories by specifying -d dir1 -d dir2")
-    parser.add_argument("--files_inpwd", type=str, help="get all filenames in current directory")
+    parser = add_fileinputs(parser)
 
     args = parser.parse_args()
 
 
     # Get files to do search and replace on:
     if filelist is None:
-        filelist = argparse_fileinputs(args.filename, args.files_asstring, args.files_infile, args.files_indir, args.files_inpwd)
+        filelist = process_fileinputs(args.filename, args.files_asstring, args.files_aslines, args.files_infile, args.files_indir, args.files_inpwd)
 
     pathmv_main(args.files, filelist)
 
     
-# Infrep Test:{{{1
-def testinfrep_setup():
-    if os.path.isdir(__projectdir__ / Path('testinfrep')):
-        shutil.rmtree(__projectdir__ / Path('testinfrep'))
-
-    os.mkdir(__projectdir__ / Path('testinfrep'))
-
-    with open(__projectdir__ / Path('testinfrep/test_simple.txt'), 'w+') as f:
-        f.write('1\n\\1cat.\n2\n')
-    with open(__projectdir__ / Path('testinfrep/test_funcboth.txt'), 'w+') as f:
-        f.write('test_funcboth.txt:123\ntest_funcboth2.txt:124\n')
-    
-
-def testinfrep_basic():
-    """
-    Verifies the case where I just enter text strings works
-    """
-    testinfrep_setup()
-
-    # do replace
-    infrep_main([{'inputterm': '\\1cat.', 'outputterm': '\\1dog.', 'filenames': [__projectdir__ / Path('testinfrep/test_simple.txt')]}])
-
-    # verify worked
-    with open(__projectdir__ / Path('testinfrep/test_simple.txt')) as f:
-        text = f.read()
-    if text != '1\n\\1dog.\n2\n':
-        raise ValueError('No match')
-        
-
-def testinfrep_inputmethod_re_outputmethod_eval():
-    testinfrep_setup()
-
-    # do replace
-    # note that I could also write r'\\' which would be the same
-    infrep_main([{'inputterm': '\\\\[0-9]([a-z]*)\.', 'outputterm': '"\\\\2" + match.group(1) + "."', 'filenames': [__projectdir__ / Path('testinfrep/test_simple.txt')], 'inputmethod': 're', 'outputmethod': 'eval'}])
-
-    # verify worked
-    with open(__projectdir__ / Path('testinfrep/test_simple.txt')) as f:
-        text = f.read()
-    if text != '1\n\\2cat.\n2\n':
-        raise ValueError('No match')
-        
-
-def testinfrep_inputmethod_recompiled():
-    testinfrep_setup()
-
-    # do replace
-    infrep_main([{'inputterm': re.compile('\\\\[0-9][a-z][a-z][a-z]\.'), 'outputterm': '\\1dog.', 'filenames': [__projectdir__ / Path('testinfrep/test_simple.txt')], 'inputmethod': 'recompiled'}])
-
-    # verify worked
-    with open(__projectdir__ / Path('testinfrep/test_simple.txt')) as f:
-        text = f.read()
-    if text != '1\n\\1dog.\n2\n':
-        raise ValueError('No match')
-        
-
-def testinfrep_inputmethod_recompiledfunc_outputmethod_func():
-    testinfrep_setup()
-
-    # define functions
-    def inputfunc(filename):
-        pattern = str(os.path.basename(filename)) + ':' + '([0-9]*)'
-        regex = re.compile(pattern)
-        return(regex)
-    def outputfunc(match, filename):
-        return(str(os.path.basename(filename)) + '!' + match.group(1))
-
-    # do replace
-    infrep_main([{'inputterm': inputfunc, 'outputterm': outputfunc, 'filenames': [__projectdir__ / Path('testinfrep/test_funcboth.txt')], 'inputmethod': 'recompiledfunc', 'outputmethod': 'func'}])
-
-    # verify worked
-    with open(__projectdir__ / Path('testinfrep/test_funcboth.txt')) as f:
-        text = f.read()
-    if text != 'test_funcboth.txt!123\ntest_funcboth2.txt:124\n':
-        raise ValueError('No match')
-
-
-def testinfrep_argparse_aux():
-    """
-    Function to define argparse with filelist so I can test argparse when I have used the filelist argument.
-    """
-    infrep_argparse(filelist = [__projectdir__ / Path('testinfrep/test_simple.txt')])
-    
-
-def testinfrep_argparse():
-    testinfrep_setup()
-
-    # do replace
-    subprocess.check_call([str(__projectdir__ / Path('run/testinfrep_argparse_aux.py')), '\\1cat.', '\\1dog.'])
-
-    # verify worked
-    with open(__projectdir__ / Path('testinfrep/test_simple.txt')) as f:
-        text = f.read()
-    if text != '1\n\\1dog.\n2\n':
-        raise ValueError('No match')
-        
-
-def testinfrep_argparse_re():
-    """
-    Do argparse test with groups.
-    """
-    testinfrep_setup()
-
-    # do replace
-    subprocess.check_call([str(__projectdir__ / Path('run/testinfrep_argparse_aux.py')), '\\\\([0-9])cat.', '"\\\\" + match.group(1) + "dog."', '--reboth'])
-
-    # verify worked
-    with open(__projectdir__ / Path('testinfrep/test_simple.txt')) as f:
-        text = f.read()
-    if text != '1\n\\1dog.\n2\n':
-        raise ValueError('No match')
-        
-
-def testinfrep_argparse_filelist():
-    """
-    Test of each of the filelist input methods
-    """
-    testinfrep_setup()
-
-    f1 = str(__projectdir__ / Path('testinfrep/test_simple.txt'))
-    f2 = str(__projectdir__ / Path('testinfrep/test_funcboth.txt'))
-
-    # --filename
-    subprocess.check_call([str(__projectdir__ / Path('run/testinfrep_argparse_aux.py')), '\\1cat.', '\\2cat.', '--filename', f1, '--filename', f2])
-    # verify worked
-    with open(__projectdir__ / Path('testinfrep/test_simple.txt')) as f:
-        text = f.read()
-    if text != '1\n\\2cat.\n2\n':
-        raise ValueError('No match')
-        
-    # --files_asstring
-    subprocess.check_call([str(__projectdir__ / Path('run/testinfrep_argparse_aux.py')), '\\2cat.', '\\3cat.', '--files_asstring', f1 + f2])
-    # verify worked
-    with open(__projectdir__ / Path('testinfrep/test_simple.txt')) as f:
-        text = f.read()
-    if text != '1\n\\3cat.\n2\n':
-        raise ValueError('No match')
-
-    # --files_infile
-    # create file containing f1, f2
-    f3 = str(__projectdir__ / Path('testinfrep/filelist.txt'))
-    with open(f3, 'w+') as f:
-        f.write(f1 + '\n' + f2 + '\n')
-    subprocess.check_call([str(__projectdir__ / Path('run/testinfrep_argparse_aux.py')), '\\3cat.', '\\4cat.', '--files_infile', f3])
-    # verify worked
-    with open(__projectdir__ / Path('testinfrep/test_simple.txt')) as f:
-        text = f.read()
-    if text != '1\n\\4cat.\n2\n':
-        raise ValueError('No match')
-
-    # --files_indir
-    subprocess.check_call([str(__projectdir__ / Path('run/testinfrep_argparse_aux.py')), '\\4cat.', '\\5cat.', '--files_infile', str(__projectdir__ / 'testinfrep/copy/')])
-    # verify worked
-    with open(__projectdir__ / Path('testinfrep/test_simple.txt')) as f:
-        text = f.read()
-    if text != '1\n\\5cat.\n2\n':
-        raise ValueError('No match')
-
-        
-
-def testinfrep_argparse_fileinput():
-    """
-    Test whether 
-    """
-    testinfrep_setup()
-
-    with open(__projectdir__ / Path('testinfrep/input.txt'), 'w+') as f:
-        f.write('\\1cat.')
-    with open(__projectdir__ / Path('testinfrep/output.txt'), 'w+') as f:
-        f.write('\\1dog.')
-
-    # do replace
-    subprocess.check_call([str(__projectdir__ / Path('run/testinfrep_argparse_aux.py')), str(__projectdir__ / Path('testinfrep/input.txt')), str(__projectdir__ / Path('testinfrep/output.txt')), '--fileboth'])
-
-    # verify worked
-    with open(__projectdir__ / Path('testinfrep/test_simple.txt')) as f:
-        text = f.read()
-    if text != '1\n\\1dog.\n2\n':
-        raise ValueError('No match')
-        
-
-def testinfrep_all():
-    """
-    Run all my test functions for infrep
-    Need to run this function from run/testinfrep_all.py on the command line, since this file needs to call infrep_func.py when doing the argparse functions.
-
-    Should be able to run without any raised errors. Otherwise, something likely is wrong.
-    """
-    print('\ntestinfrep_basic')
-    testinfrep_basic()
-
-    print('testinfrep_inputmethod_re_outputmethod_eval')
-    testinfrep_inputmethod_re_outputmethod_eval()
-
-    print('\ntestinfrep_inputmethod_recompiled')
-    testinfrep_inputmethod_recompiled()
-
-    print('\ntestinfrep_inputmethod_recompiledfunc_outputmethod_func')
-    testinfrep_inputmethod_recompiledfunc_outputmethod_func()
-
-    print('\ntestinfrep_argparse')
-    testinfrep_argparse()
-
-    print('\ntestinfrep_argparse_re')
-    testinfrep_argparse_re()
-
-    print('\ntestinfrep_argparse_filelist')
-    testinfrep_argparse_filelist()
-
-    print('\ntestinfrep_argparse_fileinput')
-    testinfrep_argparse_fileinput()
-
-# Pathmv Test:{{{1
-def testpathmv_setup():
-    # delete old version
-    if os.path.isdir(__projectdir__ / Path('testpathmv')):
-        shutil.rmtree(__projectdir__ / Path('testpathmv'))
-    # make root directory
-    os.mkdir(__projectdir__ / Path('testpathmv'))
-    # add directory inside to move into
-    os.mkdir(__projectdir__ / Path('testpathmv/dir1'))
-    # add filename containing full path to that file
-    with open(__projectdir__ / Path('testpathmv/file1.txt'), 'w+') as f:
-        f.write(str(__projectdir__ / Path('testpathmv/file1.txt')) + '\n')
-
-def testpathmv_basic():
-    testpathmv_setup()
-    
-    pathmv_main([str(__projectdir__ / Path('testpathmv/file1.txt')), str(__projectdir__ / Path('testpathmv/file2.txt'))], [str(__projectdir__ / Path('testpathmv/file1.txt'))])
-
-    with open(__projectdir__ / Path('testpathmv/file2.txt')) as f:
-        text = f.read()
-    if 'file2.txt' not in text:
-        raise ValueError('Match failed')
-
-
-def testpathmv_moveintodir():
-    testpathmv_setup()
-    
-    pathmv_main([str(__projectdir__ / Path('testpathmv/file1.txt')), str(__projectdir__ / Path('testpathmv/dir1'))], [str(__projectdir__ / Path('testpathmv/file1.txt'))])
-
-    with open(__projectdir__ / Path('testpathmv/dir1/file1.txt')) as f:
-        text = f.read()
-    if 'dir1/file1.txt' not in text:
-        raise ValueError('Match failed')
-
-
-def testpathmv_relpathinputs():
-    """
-    Verify that when relative paths are inputted into pathmv, it performs correctly
-    """
-    testpathmv_setup()
-    
-    pathmv_main([os.path.relpath(str(__projectdir__ / Path('testpathmv/file1.txt'))), os.path.relpath(str(__projectdir__ / Path('testpathmv/file2.txt')))], [os.path.relpath(str(__projectdir__ / Path('testpathmv/file1.txt')))])
-
-    with open(__projectdir__ / Path('testpathmv/file2.txt')) as f:
-        text = f.read()
-    if 'file2.txt' not in text:
-        raise ValueError('Match failed')
-
-
-def testpathmv_relativereplace():
-    """
-    Verify that the code also matches and replace ~/paths as opposed to just /home/user1/paths
-    """
-    testpathmv_setup()
-    # verify this test can be performed - only possible if this project is saved somewhere in the current user's home directory
-    if not str(__projectdir__).startswith(os.path.expanduser('~') + os.sep):
-        print('TEST NOT POSSIBLE for testpathmv_relativereplace. To do this test, project needs to be saved in user\'s home directory on a UNIX system.')
-        return(None)
-
-    # adjust writing in the file
-    with open(__projectdir__ / Path('testpathmv/file1.txt'), 'w') as f:
-        f.write(str(__projectdir__ / Path('testpathmv/file1.txt')).replace(os.path.expanduser('~') + '/', '', 1))
-    
-    pathmv_main([str(__projectdir__ / Path('testpathmv/file1.txt')), str(__projectdir__ / Path('testpathmv/file2.txt'))], [str(__projectdir__ / Path('testpathmv/file1.txt'))])
-
-    with open(__projectdir__ / Path('testpathmv/file2.txt')) as f:
-        text = f.read()
-    if 'file2.txt' not in text:
-        raise ValueError('Match failed')
-
-def testpathmv_basic():
-    testpathmv_setup()
-    
-    pathmv_main([str(__projectdir__ / Path('testpathmv/file1.txt')), str(__projectdir__ / Path('testpathmv/file2.txt'))], [str(__projectdir__ / Path('testpathmv/file1.txt'))])
-
-    with open(__projectdir__ / Path('testpathmv/file2.txt')) as f:
-        text = f.read()
-    if 'file2.txt' not in text:
-        raise ValueError('Match failed')
-
-
-def testpathmv_argparse_aux():
-    """
-    Function to define argparse with filelist so I can test argparse when I have used the filelist argument.
-    """
-    pathmv_argparse(filelist = [__projectdir__ / Path('testpathmv/file1.txt')])
-    
-
-def testpathmv_argparse_basic():
-    testpathmv_setup()
-
-    subprocess.check_call([str(__projectdir__ / Path('run/testpathmv_argparse_aux.py')), str(__projectdir__ / Path('testpathmv/file1.txt')), str(__projectdir__ / Path('testpathmv/file2.txt'))])
-
-    with open(__projectdir__ / Path('testpathmv/file2.txt')) as f:
-        text = f.read()
-    if 'file2.txt' not in text:
-        raise ValueError('Match failed')
-
-
-def testpathmv_all():
-    print('\ntestpathmv_basic')
-    testpathmv_basic()
-
-    print('\ntestpathmv_moveintodir')
-    testpathmv_moveintodir()
-
-    print('\ntestpathmv_relpathinputs')
-    testpathmv_relpathinputs()
-
-    print('\ntestpathmv_relativereplace')
-    testpathmv_relativereplace()
-
-    print('testpathmv_argparse_basic')
-    testpathmv_argparse_basic()
-

@@ -6,6 +6,6 @@ import sys
 __projectdir__ = Path(os.path.dirname(os.path.realpath(__file__)) + '/..')
 
 sys.path.append(str(__projectdir__ / Path('.')))
-from infrep_func import testpathmv_argparse_aux
+from infrep_func import pathmv_argparse
 
-testpathmv_argparse_aux()
+pathmv_argparse()
