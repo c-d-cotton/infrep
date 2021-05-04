@@ -323,7 +323,7 @@ def infrep_argparse(filelist = None):
 
     # Get files to do search and replace on:
     if filelist is None:
-        filelist = process_fileinputs(args.filename, args.files_asstring, args.files_aslines, args.files_infile, args.files_indir, args.files_inpwd)
+        filelist = process_fileinputs(args)
 
     # get inputmethod/outputmethod
     if args.reboth is True or args.reinput is True:
@@ -468,7 +468,7 @@ def pathmv_argparse(filelist = None):
 
     # Get files to do search and replace on:
     if filelist is None:
-        filelist = process_fileinputs(args.filename, args.files_asstring, args.files_aslines, args.files_infile, args.files_indir, args.files_inpwd)
+        filelist = process_fileinputs(args)
 
     pathmv_main(args.files, filelist)
 
